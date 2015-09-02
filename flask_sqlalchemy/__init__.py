@@ -150,18 +150,18 @@ class SignallingSession(SessionBase):
 
     def __init__(self, db, autocommit=False, autoflush=True, app=None, **options):
         #: The application that this session belongs to.
-        self.app = app = db.get_app()
-        track_modifications = app.config['SQLALCHEMY_TRACK_MODIFICATIONS']
+        self.app = app = app or db.get_app()
+        self._model_changes = {}
+        #: A flag that controls whether this session should keep track of
+        #: model modifications.  The default value for this attribute
+        #: is set from the ``SQLALCHEMY_TRACK_MODIFICATIONS`` config
+        #: key.
+        self.emit_modification_signals = \
+            app.config['SQLALCHEMY_TRACK_MODIFICATIONS']
         bind = options.pop('bind', None) or db.engine
-        binds = options.pop('binds', None) or db.get_binds(app)
-
-        if track_modifications is None or track_modifications:
-            _SessionSignalEvents.register(self)
-
-        SessionBase.__init__(
-            self, autocommit=autocommit, autoflush=autoflush,
-            bind=bind, binds=binds, **options
-        )
+        binds = options.pop('binds', db.get_binds(app))
+        SessionBase.__init__(self, autocommit=autocommit, autoflush=autoflush,
+                             bind=bind, binds=binds, **options)
 
     def get_bind(self, mapper=None, clause=None):
         # mapper is None if someone tries to just get a connection
@@ -1010,8 +1010,8 @@ class SQLAlchemy(object):
         return [self.Model] + self.external_bases
 
     def register_base(self, Base):
-        """Register an external raw SQLAlchemy declarative base. 
-        Allows usage of the base with our session management and 
+        """Register an external raw SQLAlchemy declarative base.
+        Allows usage of the base with our session management and
         adds convenience query property using BaseQuery by default.
         """
         self.external_bases.append(Base)
